@@ -46,9 +46,11 @@
 // BEGIN_TUTORIAL
 // Constructor for MyViz.  This does most of the work of the class.
 MyViz::MyViz( QWidget* parent )
-  : QWidget( parent )
+  : QMainWindow( parent )
 {
     // Construct UI and process signals/slots.
+    ros::NodeHandle nh;
+    assem = new _ld_assembler(nh);
     ui_constructor();
 
 
@@ -91,7 +93,8 @@ MyViz::MyViz( QWidget* parent )
 // Destructor.
 MyViz::~MyViz()
 {
-  delete manager_;
+    delete manager_;
+    delete assem;
 }
 
 
@@ -115,28 +118,23 @@ void MyViz::ui_constructor()
     controls_layout->addWidget( cell_size_label, 1, 0 );
     controls_layout->addWidget( cell_size_slider, 1, 1 );
 
-    // Lidar control widgets.
+    // Lidar control panel.
     QTabWidget* control_tab = new QTabWidget();
-    QComboBox* execMode_box = new QComboBox();
-    execMode_box->addItem("Storage");
-    execMode_box->addItem("Assemble");
-    execMode_box->setMaximumWidth(100);
-    QPushButton* button_test = new QPushButton();
-    button_test->setText("Test");
-    button_test->setMaximumWidth(60);
-    QGridLayout* control_layout_1 = new QGridLayout();
-    control_layout_1->addWidget(execMode_box, 0, 0);
-    control_layout_1->addWidget(button_test, 0, 1);
-    control_tab->addTab((QWidget*)(control_layout_1), "controls");
+    lidar_ctrl::LidarTune* tab_tune = new lidar_ctrl::LidarTune(assem);
+    control_tab->addTab(tab_tune, "controls");
+    lidar_ctrl::LidarInfo* tab_info = new lidar_ctrl::LidarInfo(assem);
+    control_tab->addTab(tab_info, "Info");
+    control_tab->setMinimumHeight(500);
+    control_tab->setMaximumWidth(500);
+
 
     render_panel_ = new rviz::RenderPanel();
+    render_panel_->setMinimumHeight(500);
+    render_panel_->setMinimumWidth(600);
 
     QGridLayout* control_panel = new QGridLayout();
     control_panel->addWidget(render_panel_, 0, 0);
-
     control_panel->addWidget(control_tab, 0, 1, Qt::AlignTop);
-    control_panel->setColumnMinimumWidth(0, 500);
-    control_panel->setColumnMinimumWidth(1, 5);
 
     // Construct and lay out render panel.
     QVBoxLayout* main_layout = new QVBoxLayout;
@@ -145,11 +143,15 @@ void MyViz::ui_constructor()
 
 
     // Set the top-level layout for this MyViz widget.
-    setLayout( main_layout );
+    QWidget* main_widget = new QWidget();
+    main_widget->setLayout(main_layout);
+    setCentralWidget(main_widget);
 
     // Make signal/slot connections.
     connect( thickness_slider, SIGNAL( valueChanged( int )), this, SLOT( setThickness( int )));
     connect( cell_size_slider, SIGNAL( valueChanged( int )), this, SLOT( setCellSize( int )));
+    connect( assem, SIGNAL(EXIT_ROS()), this, SLOT(close()),
+             Qt::QueuedConnection);
 
     // Widgets init.
     cell_size_slider->setValue( 1 );
@@ -177,12 +179,6 @@ void MyViz::setCellSize( int cell_size_percent )
   }
 }
 
-
-/**/
-void MyViz::setExecMode(_Mode mode)
-{
-
-}
 
 
 

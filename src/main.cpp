@@ -38,23 +38,18 @@
 #include "../include/myviz.h"
 #include "../include/lidar_assembler.h"
 
+#include <boost/thread.hpp>
+
 using namespace lidar_assembler;
+
 
 int main(int argc, char **argv)
 {
-  ros::init(argc, argv, "myviz");
-  ros::NodeHandle nh;
-  LidarAssembler::LidarAssemblerPtr assem(new LidarAssembler(nh));
-  if(!assem->init(argc, argv))
-  {
-      ROS_ERROR("Failed at LidarAssembler::init()");
-      return -1;
-  }
+    ros::init(argc, argv, "myviz");
+    QApplication app( argc, argv );
+    MyViz::MyVizPtr myviz(new MyViz());
+    myviz->show();
 
-  QApplication app( argc, argv );
-  MyViz::MyVizPtr myviz(new MyViz());
-  myviz->show();
-
-  app.exec();
-
+    app.exec();
+    return 0;
 }

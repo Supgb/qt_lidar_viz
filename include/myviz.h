@@ -30,9 +30,13 @@
 #define MYVIZ_H
 
 #include <QWidget>
+#include <QMainWindow>
 
 #include <boost/shared_ptr.hpp>
 #include "../include/lidar_assembler.h"
+#include "../include/lidarctrlpanel.h"
+#include "../include/lidarinfo.h"
+#include "../include/lidartune.h"
 
 namespace rviz
 {
@@ -43,7 +47,7 @@ class VisualizationManager;
 
 // BEGIN_TUTORIAL
 // Class "MyViz" implements the top level widget for this example.
-class MyViz: public QWidget
+class MyViz: public QMainWindow
 {
 Q_OBJECT
 public:
@@ -65,9 +69,6 @@ private Q_SLOTS:
   void setThickness( int thickness_percent );
   void setCellSize( int cell_size_percent );
 
-  // Lidar Assembler slots.
-  void setExecMode(_Mode mode);
-
 private:
   rviz::VisualizationManager* manager_;
   rviz::RenderPanel* render_panel_;
@@ -75,7 +76,8 @@ private:
   rviz::Display* scan_;
   rviz::Display* axes_;
 
-  _ld_assembler::LidarAssemblerPtr __assembler;
+  _ld_assembler *assem;
+
 };
 // END_TUTORIAL
 #endif // MYVIZ_H

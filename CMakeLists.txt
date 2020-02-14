@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
     tf
     )
 find_package(Boost REQUIRED)
+find_package(PCL 1.2 REQUIRED)
 catkin_package(
     DEPENDS
         Boost
@@ -20,11 +21,18 @@ include_directories(
     include
     ${catkin_INCLUDE_DIRS}
     ${Boost_INCLUDE_DIR}
+    ${PCL_INCLUDE_DIRS}
     )
-link_directories(${catkin_LIBRARY_DIRS})
+link_directories(
+    ${catkin_LIBRARY_DIRS}
+    ${PCL_LIBRARY_DIRS}
+    )
+add_definitions(
+    ${PCL_DEFINITIONS}
+    )
 
 ## This setting causes Qt's "MOC" generation to happen automatically.
-set(CMAKE_AUTOMOC ON)
+## set(CMAKE_AUTOMOC ON)
 
 ## This plugin includes Qt widgets, so we must include Qt.
 ## We'll use the version that rviz used so they are compatible.
@@ -43,7 +51,11 @@ endif()
 QT5_WRAP_CPP(MOC_FILES
     include/myviz.h
     include/lidar_assembler.h
-    include/lidarctrlpanel.h)
+    include/lidarctrlpanel.h
+    include/lidarinfo.h
+    include/lidartune.h
+    include/lidarmdl.h
+    include/logsys.h)
 
 ## I prefer the Qt signals and slots to avoid defining "emit", "slots",
 ## etc because they can conflict with boost signals, so define QT_NO_KEYWORDS here.
@@ -56,6 +68,10 @@ set(SRC_FILES
   src/main.cpp
   src/lidar_assembler.cpp
   src/lidarctrlpanel.cpp
+  src/lidarinfo.cpp
+  src/lidartune.cpp
+  src/lidarmdl.cpp
+  src/logsys.cpp
 )
 
 ## Add the "myviz" executable and specify the list of source files we
@@ -66,7 +82,8 @@ add_executable(myviz ${SRC_FILES} ${MOC_FILES})
 ## the ``find_package(Qt4 ...)`` line above, or by the
 ## ``set(QT_LIBRARIES Qt5::Widgets)``, and with whatever libraries
 ## catkin has included.
-target_link_libraries(myviz ${QT_LIBRARIES} ${catkin_LIBRARIES})
+target_link_libraries(myviz ${QT_LIBRARIES} ${catkin_LIBRARIES}
+    ${PCL_LIBRARIES})
 ## END_TUTORIAL
 
 ## Install

@@ -1,5 +1,8 @@
 #include "../include/lidar_assembler.h"
 
+#include <QDateTime>
+#include <QTextStream>
+
 namespace lidar_assembler {
 
 const char* ACT_WS = "source /home/supgb/Documents/Dev/ros_test/devel/setup.sh";
@@ -41,6 +44,28 @@ bool LidarAssembler::init(int init_argc, char** init_argv)
 void LidarAssembler::run()
 {
     ros::spin();
+    Q_EMIT EXIT_ROS();
+}
+
+
+/*
+*** logging system
+*/
+
+
+/*
+*** Modify the execution mode.
+*/
+bool LidarAssembler::setExecMode(const QString& str)
+{
+    QString str2log;
+    if (str == "Storage")
+        _mode = STORE_M;
+    else if (str == "Assemble")
+        _mode = ASSEMBLE_M;
+    str2log = "The execute mode is changed to " + str;
+    log_pipe(Info, str2log);
+    return true;
 }
 
 /*
