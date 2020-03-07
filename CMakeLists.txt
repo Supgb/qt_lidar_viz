@@ -5,18 +5,45 @@
 ## First start with some standard catkin stuff.
 cmake_minimum_required(VERSION 2.8.3)
 project(qt_lidar_viz)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++11")
 find_package(catkin REQUIRED COMPONENTS
     rviz roscpp rospy
     laser_geometry
     sensor_msgs
     tf
+    pcl_ros
+    pcl_conversions
+    pluginlib
+    std_msgs
+    visualization_msgs
+    message_generation
     )
 find_package(Boost REQUIRED)
 find_package(PCL 1.2 REQUIRED)
+
+add_message_files(
+    FILES
+    LslidarN301Packet.msg
+    LslidarN301Point.msg
+    LslidarN301Scan.msg
+    LslidarN301Sweep.msg
+        )
+
+generate_messages(
+    DEPENDENCIES
+    std_msgs
+    )
+
 catkin_package(
+    CATKIN_DEPENDS
+        message_runtime
+        std_msgs roscpp sensor_msgs visualization_msgs
+        pluginlib tf
+        pcl_ros pcl_conversions
     DEPENDS
         Boost
         )
+
 include_directories(
     include
     ${catkin_INCLUDE_DIRS}
@@ -24,12 +51,37 @@ include_directories(
     ${PCL_INCLUDE_DIRS}
     )
 link_directories(
+    ${rviz_DEFAULT_PLUGIN_LIBRARIES}
     ${catkin_LIBRARY_DIRS}
     ${PCL_LIBRARY_DIRS}
     )
 add_definitions(
     ${PCL_DEFINITIONS}
     )
+
+## Lslidar driver.
+add_library(lslidar_n301_driver
+    src/lslidar_n301_driver.cc)
+target_link_libraries(lslidar_n301_driver
+    ${catkin_LIBRARIES}
+    )
+add_dependencies(lslidar_n301_driver
+    ${${PROJECT_NAME}_EXPORTED_TARGETS}
+    ${catkin_EXPORTED_TARGETS}
+    )
+
+## Lslidar decode driver.
+add_library(lslidar_n301_decoder
+    src/lslidar_n301_decoder.cpp
+    )
+target_link_libraries(lslidar_n301_decoder
+    ${catkin_LIBRARIES}
+    )
+add_dependencies(lslidar_n301_decoder
+    ${${PROJECT_NAME}_EXPORTED_TARGETS}
+    ${catkin_EXPORTED_TARGETS}
+    )
+
 
 ## This setting causes Qt's "MOC" generation to happen automatically.
 ## set(CMAKE_AUTOMOC ON)
@@ -53,9 +105,13 @@ QT5_WRAP_CPP(MOC_FILES
     include/lidar_assembler.h
     include/lidarctrlpanel.h
     include/lidarinfo.h
-    include/lidartune.h
+    #include/lidartune.h
     include/lidarmdl.h
-    include/logsys.h)
+    include/logsys.h
+    include/lidardriver.h
+    include/lidardecoder.h
+    include/lidardebug.h
+    )
 
 ## I prefer the Qt signals and slots to avoid defining "emit", "slots",
 ## etc because they can conflict with boost signals, so define QT_NO_KEYWORDS here.
@@ -72,6 +128,9 @@ set(SRC_FILES
   src/lidartune.cpp
   src/lidarmdl.cpp
   src/logsys.cpp
+  src/lidardriver.cpp
+  src/lidardecoder.cpp
+  src/lidardebug.cpp
 )
 
 ## Add the "myviz" executable and specify the list of source files we
@@ -82,8 +141,17 @@ add_executable(myviz ${SRC_FILES} ${MOC_FILES})
 ## the ``find_package(Qt4 ...)`` line above, or by the
 ## ``set(QT_LIBRARIES Qt5::Widgets)``, and with whatever libraries
 ## catkin has included.
-target_link_libraries(myviz ${QT_LIBRARIES} ${catkin_LIBRARIES}
+target_link_libraries(myviz
+    lslidar_n301_driver
+    lslidar_n301_decoder
+    ${QT_LIBRARIES}
+    ${rviz_DEFAULT_PLUGIN_LIBRARIES}
+    ${catkin_LIBRARIES}
     ${PCL_LIBRARIES})
+add_dependencies(myviz
+    ${${PROJECT_NAME}_EXPORTED_TARGETS}
+    ${catkin_EXPORTED_TARGETS}
+    )
 ## END_TUTORIAL
 
 ## Install

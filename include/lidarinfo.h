@@ -2,24 +2,25 @@
 #define LIDARINFO_H
 
 #include <QWidget>
-#include <QGridLayout>
-#include <QListView>
-#include <QScrollBar>
 
 #include "../include/lidarctrlpanel.h"
-#include "../include/lidartune.h"
 
-namespace lidar_ctrl
+class QGridLayout;
+class QListView;
+class QScrollBar;
+
+namespace lidar_base
 {
 
-class LidarInfo : public QWidget, public LidarCtrlPanel
+class LidarInfo final: public QWidget, public LidarCtrlPanel
 {
     Q_OBJECT
 public:    
-    explicit LidarInfo(_ld_assembler *assem);
+    explicit LidarInfo(_ld_assembler*, _ld_driver_t*,
+                       _ld_decoder_t*, _ld_model_t*);
     LidarInfo(const LidarInfo&) = delete;
     LidarInfo& operator=(const LidarInfo&) = delete;
-    virtual ~LidarInfo(){}
+    virtual ~LidarInfo() = default;
 
     virtual void ui_constructor();
 
@@ -32,5 +33,5 @@ private:
     QScrollBar* scr_bar;
 };
 
-}
+}   // namespace lidar_base
 #endif // LIDARINFO_H

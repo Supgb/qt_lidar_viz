@@ -1,10 +1,15 @@
 #include "lidarinfo.h"
 #include <QAbstractItemView>
+#include <QGridLayout>
+#include <QListView>
+#include <QScrollBar>
 
-using namespace lidar_ctrl;
+namespace lidar_base
+{
 
-LidarInfo::LidarInfo(_ld_assembler *assem):
-    LidarCtrlPanel(assem)
+LidarInfo::LidarInfo(_ld_assembler *assem, _ld_driver_t* driver,
+                     _ld_decoder_t* decoder, _ld_model_t* model):
+    LidarCtrlPanel(assem, driver, decoder, model)
 {
     ui_constructor();
 }
@@ -29,3 +34,5 @@ void LidarInfo::reloadLogInfo()
 {
     log_view->scrollToBottom();
 }
+
+}   // namespace lidar_base

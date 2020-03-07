@@ -5,12 +5,13 @@
 #include <QStringListModel>
 
 #include <ros/ros.h>
-#include <sensor_msgs/PointCloud.h>
+#include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/LaserScan.h>
 #include <laser_geometry/laser_geometry.h>
 #include <tf/transform_listener.h>
 #include <tf/message_filter.h>
 #include <message_filters/subscriber.h>
+#include <pcl_ros/point_cloud.h>
 
 #include <boost/shared_ptr.hpp>
 #include <vector>
@@ -21,12 +22,12 @@
 #define SCAN_DEBUG
 #endif // SCAN_DEBUG
 
-namespace lidar_assembler {
+namespace lidar_base {
 
 extern const char* ACT_WS;
 extern const char* LSLIDAR_SETUP;
 
-class LidarAssembler : public QThread, public lidar_log::LogSys
+class LidarAssembler final: public QThread, public LogSys
 {
     Q_OBJECT
 public:
@@ -34,40 +35,31 @@ public:
     enum ExecMode
     {
         STORE_M,    // Store mode, only accumulate the cloud.
-        ASSEMBLE_M  // Assemble mode, collect the point from the cloud,
+        ASSEMBLE_M,  // Assemble mode, collect the point from the cloud,
                     //  and assemble into _cloud to be published.
+        LASERSCAN_M
     };
-
-//    enum LogLevel
-//    {
-//        Debug,
-//        Info,
-//        Warn,
-//        Error,
-//        Fatal
-//    };
 
     typedef boost::shared_ptr<LidarAssembler> LidarAssemblerPtr;
     typedef boost::shared_ptr<const LidarAssembler> LidarAssemblerConstPtr;
 
-    explicit LidarAssembler(ros::NodeHandle nh);
+    explicit LidarAssembler(const std::string& sub_topic_name,
+                            const std::string& pub_topic_name,
+                            const std::string& frame_id,
+                            ros::NodeHandle& nh, ros::NodeHandle& ph,
+                            QStringListModel* lm);
     LidarAssembler(const LidarAssembler&) = delete;
     LidarAssembler& operator=(const LidarAssembler&) = delete;
-    virtual ~LidarAssembler()
+    ~LidarAssembler()
     {
-        if(ros::isStarted())
-        {
-            ros::shutdown();
-            ros::waitForShutdown();
-        }
-        wait();
+        this->wait();
     }
 
     // Qt Routine.
     void run();
 
     // ROS Routine.
-    bool init(int argc, char** argv);
+    bool init();
 
 #ifdef SCAN_DEBUG
     inline bool setUp()
@@ -79,14 +71,30 @@ public:
     // Get system details.
     inline const double& getMaxDutyRange() const
         { return max_duty_range; }
-    inline void resetIndex(geometry_msgs::Point32::_z_type& idx)
-        { idx = 0.0; }
+    inline void resetIndex(float idx)
+        { _index = 0.0; }
     inline int getCloudStorage() const
         { return _storage_cloud.size(); }
 
     // Log.
     virtual void log_pipe(const LogLevel& level, const QString& msg)
     { log(level, msg); Q_EMIT UPDATE_LOG(); }
+
+    // members access.
+    const std::string& getSubTopic() const
+    { return sub_str; }
+    const std::string& getPubTopic() const
+    { return pub_str; }
+    const std::string& getFrameId() const
+    { return _frame_id; }
+
+    // ros vars access.
+    void _unsubscribe()
+    { _laser_sub.unsubscribe(); }
+    void _resubscribe()
+    {
+        _laser_sub.subscribe(_nh, sub_str, 10);
+    }
 
 Q_SIGNALS:
     void UPDATE_LOG();
@@ -96,24 +104,25 @@ public Q_SLOTS:
     bool setExecMode(const QString&);
 
 
-
 private:
     // ROS vars.
-    sensor_msgs::PointCloud _cloud, cd_buff;
-    std::vector<sensor_msgs::PointCloud> _storage_cloud;
+    std::string sub_str, pub_str, _frame_id;
+    sensor_msgs::PointCloud2 ros_pcd_buff;
+    pcl::PointCloud<pcl::PointXYZ> cd_buff;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr _cloud_shared;
+    std::vector<pcl::PointCloud<pcl::PointXYZ>> _storage_cloud;   // TODO:Modify the type.
     sensor_msgs::LaserScan _scan;
     ros::NodeHandle _nh;
+    ros::NodeHandle _ph;
     message_filters::Subscriber<sensor_msgs::LaserScan> _laser_sub;
     ros::Publisher _cloud_pub;
     laser_geometry::LaserProjection _projector;
     tf::TransformListener _listener;
     tf::MessageFilter<sensor_msgs::LaserScan> _laser_notifier;
-    // Log vars.
-//    QStringListModel logging_model;
     // System vars.
     ExecMode _mode;
     double max_duty_range;
-    geometry_msgs::Point32::_z_type _index;
+    float _index;
 
 #ifdef SCAN_DEBUG
     bool _db_start_scan;
@@ -134,5 +143,5 @@ private:
 
 };
 
-}   // namespace lidar_assembler
+}   // namespace lidar_base
 #endif // LIDAR_ASSEMBLER_H

@@ -36,18 +36,15 @@
 #include <QApplication>
 #include <ros/ros.h>
 #include "../include/myviz.h"
-#include "../include/lidar_assembler.h"
-
-#include <boost/thread.hpp>
-
-using namespace lidar_assembler;
 
 
 int main(int argc, char **argv)
 {
+    QStringListModel logging_model;
     ros::init(argc, argv, "myviz");
+
     QApplication app( argc, argv );
-    MyViz::MyVizPtr myviz(new MyViz());
+    MyViz::MyVizPtr myviz(new MyViz(&logging_model));
     myviz->show();
 
     app.exec();

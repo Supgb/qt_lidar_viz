@@ -27,6 +27,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <QWidget>
 #include <QColor>
 #include <QSlider>
 #include <QLabel>
@@ -39,18 +40,52 @@
 #include "rviz/visualization_manager.h"
 #include "rviz/render_panel.h"
 #include "rviz/display.h"
+#include "rviz/default_plugin/marker_display.h"
+#include "OGRE/OgreMeshManager.h"
+#include "boost/thread.hpp"
 
 #include "../include/myviz.h"
 #include "../include/lidar_assembler.h"
 
 // BEGIN_TUTORIAL
 // Constructor for MyViz.  This does most of the work of the class.
-MyViz::MyViz( QWidget* parent )
-  : QMainWindow( parent )
+MyViz::MyViz( QStringListModel* lm, QWidget* parent )
+  : QMainWindow( parent ),
+    LogSys(lm),
+    nh(), ph("~"),
+    spinner(4),
+    _driver_ptr(new _ld_driver_t(nh, ph, lm)),
+    _decoder_ptr(new _ld_decoder_t(nh, ph, lm)),
+    assem(new _ld_assembler("scan", "/lidar_cloud", "lslidar", nh, ph, lm)),
+    _model_ptr(new _ld_model_t(*assem, "visualization_marker", "mesh.stl", lm)),
+    _debugger_md_ptr(new _ld_debug_md_t(_model_ptr)),
+    debugger_th(nullptr)
 {
+    spinner.start();
+    // Lslidar driver init.
+    //_driver_ptr = new _ld_driver_t(nh, ph, lm);
+    if (!_driver_ptr->_w_initialize())
+    {
+        this->log_pipe(Error, "Failed at LidarDriver::_w_initialize()");
+    }
+    // Lslidar decoder init.
+    //_decoder_ptr = new _ld_decoder_t(nh, ph, lm);
+    if (!_decoder_ptr->_w_initialize())
+    {
+        this->log_pipe(Error, "Failed at LidarDecoder::_w_initalize()");
+    }
     // Construct UI and process signals/slots.
-    ros::NodeHandle nh;
-    assem = new _ld_assembler(nh);
+    //assem = new _ld_assembler("scan", "/lidar_cloud", "lslidar", nh, ph, lm);
+    if (!assem->init())
+    {
+        std::cout << "Construct MyViz failed, cause init() return false.\n";
+    }
+    //_model_ptr = new _ld_model_t(*assem, "visualization_marker", "mesh.stl", lm);
+    if (!_model_ptr->init())
+    {
+        this->log_pipe(Error, "Failed at LidarMDL::init()");
+    }
+
     ui_constructor();
 
 
@@ -61,7 +96,7 @@ MyViz::MyViz( QWidget* parent )
     // very central and we will probably need one in every usage of
     // librviz.
     manager_ = new rviz::VisualizationManager( render_panel_ );
-    manager_->setFixedFrame("laser_link");
+    manager_->setFixedFrame("lslidar");
     render_panel_->initialize( manager_->getSceneManager(), manager_ );
     manager_->initialize();
     manager_->startUpdate();
@@ -75,7 +110,7 @@ MyViz::MyViz( QWidget* parent )
     grid_->subProp( "Color" )->setValue( QColor( Qt::white ) );
 
     // Create a Laser Scan display.
-    scan_ = manager_->createDisplay("rviz/PointCloud", "point cloud", true);
+    scan_ = manager_->createDisplay("rviz/PointCloud2", "pcl point cloud", true);
     ROS_ASSERT( scan_ != NULL);
     // Configure the LaserScan display.
     scan_->subProp( "Style" )->setValue( "Flat Squares" );
@@ -83,18 +118,38 @@ MyViz::MyViz( QWidget* parent )
     //scan_->subProp("Position Transformer")->setValue("XYZ");
     scan_->subProp( "Autocompute Intensity Bounds" )->setValue(true);
 
-
     // Create a Axes display.
     axes_ = manager_->createDisplay("rviz/Axes", "axes", true);
     ROS_ASSERT( axes_ != NULL);
+
+    // Create a Marker display.
+    //marker_ = manager_->createDisplay("rviz/Marker", "marker", true);
+    marker_ = new rviz::MarkerDisplay();
+    manager_->addDisplay(marker_, true);
+    ROS_ASSERT( marker_ != NULL);
 
 }
 
 // Destructor.
 MyViz::~MyViz()
 {
-    delete manager_;
-    delete assem;
+    debugger_th->join();
+    ros::requestShutdown();
+    ros::waitForShutdown();
+    if (manager_ != nullptr)
+        delete manager_;
+    if (assem != nullptr)
+        delete assem;
+    if (_driver_ptr != nullptr)
+        delete _driver_ptr;
+    if (_decoder_ptr != nullptr)
+        delete _decoder_ptr;
+    if (_model_ptr != nullptr)
+        delete _model_ptr;
+    if (_debugger_md_ptr != nullptr)
+        delete _debugger_md_ptr;
+    if (debugger_th != nullptr)
+        delete debugger_th;
 }
 
 
@@ -120,9 +175,9 @@ void MyViz::ui_constructor()
 
     // Lidar control panel.
     QTabWidget* control_tab = new QTabWidget();
-    lidar_ctrl::LidarTune* tab_tune = new lidar_ctrl::LidarTune(assem);
+    lidar_base::LidarTune* tab_tune = new lidar_base::LidarTune(assem, _driver_ptr, _decoder_ptr, _model_ptr, this);
     control_tab->addTab(tab_tune, "controls");
-    lidar_ctrl::LidarInfo* tab_info = new lidar_ctrl::LidarInfo(assem);
+    lidar_base::LidarInfo* tab_info = new lidar_base::LidarInfo(assem, _driver_ptr, _decoder_ptr, _model_ptr);
     control_tab->addTab(tab_info, "Info");
     control_tab->setMinimumHeight(500);
     control_tab->setMaximumWidth(500);
@@ -150,8 +205,14 @@ void MyViz::ui_constructor()
     // Make signal/slot connections.
     connect( thickness_slider, SIGNAL( valueChanged( int )), this, SLOT( setThickness( int )));
     connect( cell_size_slider, SIGNAL( valueChanged( int )), this, SLOT( setCellSize( int )));
-    connect( assem, SIGNAL(EXIT_ROS()), this, SLOT(close()),
-             Qt::QueuedConnection);
+//    connect( assem, SIGNAL(EXIT_ROS()), this, SLOT(close()),
+//             Qt::QueuedConnection);
+//    connect( _driver_ptr, SIGNAL(ROS_EXIT()), this, SLOT(close()),
+//                 Qt::QueuedConnection);
+//    connect( _decoder_ptr, SIGNAL(ROS_EXIT()), this, SLOT(close()),
+//                 Qt::QueuedConnection);
+    //connect( _model_ptr, SIGNAL(EXIT_ROS()), this, SLOT(close()),
+    //             Qt::QueuedConnection);
 
     // Widgets init.
     cell_size_slider->setValue( 1 );
@@ -179,16 +240,8 @@ void MyViz::setCellSize( int cell_size_percent )
   }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+void MyViz::resetMesh()
+{
+    Ogre::MeshManager::getSingleton().removeAll();
+    manager_->resetTime();
+}

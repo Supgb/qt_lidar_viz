@@ -2,15 +2,16 @@
 
 #include <QDateTime>
 #include <QTextStream>
+#include <QMutex>
+#include <QStringListModel>
 
-using namespace lidar_log;
+namespace lidar_base
+{
 
-LogSys::~LogSys()
-{}
+QMutex loggingModel_mutex;
 
 void LogSys::log(const LogLevel &level, const QString &msg)
 {
-    logging_model.insertRows(logging_model.rowCount(), 1);
     QString logging_msg;
     QTextStream logging_model_msg(&logging_msg);
     switch (level) {
@@ -39,7 +40,10 @@ void LogSys::log(const LogLevel &level, const QString &msg)
                               << "]: " << msg;
         break;
     }
-
-    logging_model.setData(logging_model.index(logging_model.rowCount()-1),
+    QMutexLocker(&lidar_base::loggingModel_mutex);   // qualifier required.
+    logging_model->insertRows(logging_model->rowCount(), 1);
+    logging_model->setData(logging_model->index(logging_model->rowCount()-1),
                           logging_msg);
 }
+
+}   // namespace lidar_base
